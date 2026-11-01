@@ -1,0 +1,5 @@
+__pycache__/
+clap_env/
+venv/
+.env
+*.mp3

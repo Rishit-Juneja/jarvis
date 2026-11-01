@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JARVIS_STABILIZED_20</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --red: #ff0000;
+            --white: #ffffff;
+            --pink: #ff69b4;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            justify-content: flex-end; /* Left side of monitor (mirrored) */
+            align-items: center;
+            transform: scaleX(-1);
+            perspective: 1500px;
+        }
+
+        #hologram-stage {
+            width: 400px;
+            height: 600px;
+            margin-right: 80px;
+            position: relative;
+            transform-style: preserve-3d;
+            /* TILT: Set to 20 degrees as requested */
+            transform: rotateY(20deg);
+            transform-origin: center center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Fixed Depth Planes */
+        .depth-plane {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform-style: preserve-3d;
+            pointer-events: none;
+        }
+
+        .back {
+            transform: translateZ(0px);
+            border-left: 2px solid rgba(255, 0, 0, 0.4);
+            background: linear-gradient(90deg, rgba(255, 0, 0, 0.1), transparent);
+        }
+
+        /* Mid: This now holds both Rings AND the J-Core for perfect alignment */
+        .mid { transform: translateZ(60px); justify-content: center; }
+
+        /* Front: Status text and visualizer */
+        .front { transform: translateZ(100px); justify-content: flex-end; padding-bottom: 40px; }
+
+        #orb-system {
+            position: relative;
+            width: 240px; height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform-style: preserve-3d;
+        }
+
+        .ring {
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--white);
+            box-shadow: 0 0 15px var(--red);
+            animation: rotate 12s linear infinite;
+        }
+
+        /* J-CORE: Locked in the middle of the circles */
+        #j-core {
+            position: relative;
+            width: 100px; height: 100px;
+            background: var(--white);
+            border: 4px solid var(--red);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px var(--white);
+            /* Protrudes slightly forward from rings for 3D depth */
+            transform: translateZ(20px);
+        }
+
+        #letter-j {
+            font-family: 'Orbitron';
+            font-size: 55px; font-weight: 900;
+            color: var(--pink);
+            text-shadow: 0 0 15px var(--pink);
+        }
+
+        /* Text UI Layout */
+        .ui-panel {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .label { color: var(--red); font-size: 10px; letter-spacing: 5px; margin-bottom: 5px; }
+
+        #state-text {
+            font-family: 'Orbitron';
+            font-size: 26px;
+            color: var(--white);
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Color swap for active states */
+        body.thinking #state-text,
+        body.speaking #state-text,
+        body.listening #state-text,
+        body.answering #state-text {
+            color: var(--red);
+            text-shadow: 0 0 20px var(--red);
+        }
+
+        #viz {
+            display: flex; align-items: flex-end; justify-content: center;
+            gap: 4px; height: 40px; margin-top: 15px;
+        }
+
+        .bar { width: 5px; background: var(--white); border: 0.5px solid var(--red); height: 6px; }
+
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { height: 6px; } 50% { height: 35px; } }
+
+        body.speaking .bar, body.thinking .bar, body.answering .bar {
+            animation: pulse 0.3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="standby">
+
+    <div id="hologram-stage">
+        <div class="depth-plane back"></div>
+
+        <div class="depth-plane mid">
+            <div id="orb-system">
+                <div class="ring"></div>
+                <div class="ring" style="width: 85%; height: 85%; border-style: dashed; animation-duration: 6s; animation-direction: reverse;"></div>
+                <div id="j-core">
+                    <span id="letter-j">J</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="depth-plane front">
+            <div class="ui-panel">
+                <p class="label">NEURAL_MATRIX</p>
+                <h1 id="state-text">STANDBY</h1>
+                <div id="viz"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Visualizer Bars
+        const viz = document.getElementById('viz');
+        for(let i=0; i<16; i++) {
+            const b = document.createElement('div');
+            b.className = 'bar';
+            b.style.animationDelay = (i * 0.05) + 's';
+            viz.appendChild(b);
+        }
+
+        // Sync with server.py
+        async function syncHologram() {
+            try {
+                const res = await fetch('http://127.0.0.1:7777/state');
+                const data = await res.json();
+                const state = data.state.toLowerCase();
+                const label = document.getElementById('state-text');
+
+                if (state === "idle" || state === "standby") {
+                    label.innerText = "STANDBY";
+                    document.body.className = "standby";
+                } else {
+                    label.innerText = state.toUpperCase();
+                    document.body.className = state;
+                }
+            } catch (e) {
+                document.getElementById('state-text').innerText = "LINK_OFFLINE";
+            }
+        }
+        setInterval(syncHologram, 300);
+    </script>
+</body>
+</html>
